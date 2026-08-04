@@ -1,4 +1,11 @@
 {
+  "rpicam-apps": {
+    "lores": {
+      "width": 640,
+      "height": 360,
+      "format": "rgb"
+    }
+  },
   "face_detect_cv": {
     "cascade_name": "/usr/share/opencv4/haarcascades/haarcascade_frontalface_alt.xml",
     "scaling_factor": 1.1,
