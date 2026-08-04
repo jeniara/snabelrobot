@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Snabelrobot V1</title>
+  <style>
+    :root{color-scheme:dark;font-family:system-ui,sans-serif;background:#12171c;color:#edf3f7}*{box-sizing:border-box}body{margin:0}.top{display:flex;justify-content:space-between;padding:14px 18px;background:#202a33}.wrap{max-width:950px;margin:auto;padding:16px;display:grid;grid-template-columns:1fr 1.15fr;gap:14px}.panel{background:#20272e;border:1px solid #35404a;border-radius:10px;padding:16px}.status{display:grid;grid-template-columns:1fr 1fr;gap:7px 16px}.kv{display:flex;justify-content:space-between;border-bottom:1px solid #37414a;padding:6px 0}.pad{display:grid;grid-template-columns:repeat(3,70px);gap:8px;justify-content:center}.pad button{height:58px;font-size:25px}.xy{display:grid;place-items:center;color:#9eabb4}button{border:1px solid #52606b;background:#303a43;color:#fff;border-radius:7px;padding:10px;cursor:pointer}button:active{background:#536270}button:disabled{opacity:.45}.controls{display:grid;gap:16px}.rangehead{display:flex;justify-content:space-between}input{width:100%}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.estop{grid-column:1/-1;background:#bd2c23;border:0;font-weight:700}pre{height:160px;overflow:auto;background:#0d1115;color:#b9f6ca;padding:10px;border-radius:6px;white-space:pre-wrap}.offline{color:#ff9b8f}.online{color:#70df9a}@media(max-width:680px){.wrap{grid-template-columns:1fr}.status{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<header class="top"><strong>Snabelrobot V1</strong><span id="connection" class="offline">Frånkopplad</span></header>
+<main class="wrap">
+ <div>
+  <section class="panel"><h2>Status</h2><div class="status"><div class="kv"><span>Läge</span><b id="state">Offline</b></div><div class="kv"><span>Fart</span><b id="feed">0 mm/min</b></div><div class="kv"><span>X</span><b id="x">–</b></div><div class="kv"><span>Y</span><b id="y">–</b></div></div></section>
+  <section class="panel"><h2>Håll inne för att köra</h2><div class="pad">
+   <button data-x="-1" data-y="1">↖</button><button data-x="0" data-y="1">↑</button><button data-x="1" data-y="1">↗</button>
+   <button data-x="-1" data-y="0">←</button><span class="xy">XY</span><button data-x="1" data-y="0">→</button>
+   <button data-x="-1" data-y="-1">↙</button><button data-x="0" data-y="-1">↓</button><button data-x="1" data-y="-1">↘</button>
+  </div></section>
+ </div>
+ <div>
+  <section class="panel controls"><h2>Styrning</h2><label><span class="rangehead"><span>Hastighet</span><b><span id="speed-value">60</span> mm/min</b></span><input id="speed" type="range" min="10" max="500" step="10" value="60"></label><div class="actions"><button id="connect">Anslut</button><button id="hold">Pausa</button><button id="stop">Stoppa jogg</button><button id="refresh">Läs status</button><button class="estop" id="estop">NÖDSTOPP · GRBL RESET</button></div></section>
+  <section class="panel"><h2>Logg</h2><pre id="log">Kontrollpanelen startad</pre></section>
+ </div>
+</main>
+<script>
+const q=s=>document.querySelector(s),log=q('#log'),speed=q('#speed');let heartbeat=null;
+function note(t){log.textContent+='\n'+new Date().toLocaleTimeString()+'  '+t;log.scrollTop=log.scrollHeight}
+async function api(path,body){const options={method:'POST',headers:{'Content-Type':'application/json'}};if(body)options.body=JSON.stringify(body);const r=await fetch(path,options),data=await r.json();if(!r.ok||!data.ok)throw Error(data.error||'Fel');return data}
+async function status(){try{const r=await fetch('/api/status'),d=await r.json();q('#connection').textContent=d.connected?'GRBL ansluten':'Frånkopplad';q('#connection').className=d.connected?'online':'offline';q('#state').textContent=d.connected?d.state:'Offline';if(d.machine_position){q('#x').textContent=d.machine_position[0].toFixed(3)+' mm';q('#y').textContent=d.machine_position[1].toFixed(3)+' mm'}q('#feed').textContent=(d.feed_rate||0)+' mm/min'}catch(e){note(e.message)}}
+async function stop(){clearInterval(heartbeat);heartbeat=null;try{await api('/api/stop');note('Jogg stoppad')}catch(e){note(e.message)}status()}
+document.querySelectorAll('[data-x]').forEach(b=>{b.addEventListener('pointerdown',async e=>{e.preventDefault();b.setPointerCapture(e.pointerId);try{await api('/api/jog',{x:+b.dataset.x*10,y:+b.dataset.y*10,speed:+speed.value});note('Jogg startad');heartbeat=setInterval(()=>api('/api/heartbeat').catch(()=>{}),250)}catch(err){note(err.message)}});b.addEventListener('pointerup',stop);b.addEventListener('pointercancel',stop)});
+q('#connect').onclick=async()=>{try{const d=await api('/api/connect');note(d.version);status()}catch(e){note(e.message)}};q('#stop').onclick=stop;q('#hold').onclick=()=>api('/api/hold').then(()=>note('Feed hold')).catch(e=>note(e.message));q('#estop').onclick=()=>api('/api/emergency-stop').then(()=>note('NÖDSTOPP skickat')).catch(e=>note(e.message));q('#refresh').onclick=status;speed.oninput=()=>q('#speed-value').textContent=speed.value;window.addEventListener('blur',stop);document.addEventListener('visibilitychange',()=>{if(document.hidden)stop()});setInterval(status,1000);status();
+</script>
+</body></html>
+

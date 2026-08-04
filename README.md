@@ -44,6 +44,14 @@ python main.py jog --x 2 --speed 60
 python main.py jog --y -1 --speed 30
 ```
 
+## Fristående webbpanel
+
+Starta manuellt med `.venv/bin/python webapp.py` och öppna sedan
+`http://pibox.local:8080`. Webbpanelen skickar heartbeat under joggning; om
+kontakten upphör skickar serverns watchdog jog cancel inom 0,75 sekunder.
+
+För automatisk start används `deploy/snabelrobot.service` som systemd-tjänst.
+
 All hårdvarukommunikation går genom `GrblController` i `grbl.py`. GUI och högre
 logik ska aldrig skicka G-kod direkt.
 
