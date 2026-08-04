@@ -1,5 +1,17 @@
 # Snabelrobot V1
 
+## Hailo AI-kamera
+
+`ai_app.py` har kameraval och två lägen på port 8082: föremålsdetektering på
+Hailo-8 (AI HAT+ 26 TOPS) och integritetssäker ansiktsdetektering. Ansiktsläget
+identifierar inte personer och bedömer inte kön, ålder, humör eller egenskaper.
+
+Installera Raspberry Pi-paketet med `sudo apt install hailo-all`. Montera HAT+
+när Pi:n är avstängd, starta om och verifiera med
+`hailortcli fw-control identify`. Bookworm-paketets särskilda ansiktsmodell är
+bara kompilerad för Hailo-8L, så Hailo-8 använder tills vidare CPU-läget för
+ansikten.
+
 Styrning av en vajerdriven flexibel robot med Raspberry Pi, Arduino Uno,
 CNC Shield V3 och GRBL 1.1h.
 

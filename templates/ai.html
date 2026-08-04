@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snabelrobot AI-kamera</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #101820; color: #eef5f8; }
+    main { max-width: 1100px; margin: auto; padding: 24px; }
+    header, .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    header { justify-content: space-between; }
+    .panel { background: #182630; border: 1px solid #36505f; border-radius: 14px; padding: 18px; }
+    select, button { padding: 10px 14px; border-radius: 8px; border: 1px solid #587282; font: inherit; }
+    button { background: #2b8a66; color: white; cursor: pointer; }
+    img { display: block; width: 100%; min-height: 300px; margin-top: 18px; background: #05080a; border-radius: 10px; object-fit: contain; }
+    .badge { padding: 7px 10px; border-radius: 999px; background: #664f20; }
+    .ready { background: #1f684d; }
+    small { color: #b8c9d2; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Snabelrobot AI-kamera</h1><small>Objekt eller ansikten, kamera 0 eller 1</small></div>
+    <span id="status" class="badge">Kontrollerar Hailo…</span>
+  </header>
+  <section class="panel">
+    <div class="controls">
+      <label>Kamera <select id="camera"><option value="0">Kamera 0</option><option value="1">Kamera 1</option></select></label>
+      <label>Läge <select id="mode"><option value="objects">Föremål (Hailo)</option><option value="faces">Ansikten (detektering)</option></select></label>
+      <button id="start">Starta bild</button>
+    </div>
+    <p><small>Ansiktsläget visar endast var ansikten finns. Det bedömer inte identitet, kön, ålder eller känslor.</small></p>
+    <img id="feed" alt="Kamerabilden visas här">
+  </section>
+</main>
+<script>
+  const feed = document.querySelector('#feed');
+  document.querySelector('#start').addEventListener('click', () => {
+    const camera = document.querySelector('#camera').value;
+    const mode = document.querySelector('#mode').value;
+    feed.src = `/video_feed?camera=${camera}&mode=${mode}&t=${Date.now()}`;
+  });
+  fetch('/api/status').then(r => r.json()).then(s => {
+    const badge = document.querySelector('#status');
+    badge.textContent = s.hailo_ready ? 'Hailo redo' : 'Hailo väntar på montering + omstart';
+    if (s.hailo_ready) badge.classList.add('ready');
+  });
+</script>
+</body>
+</html>

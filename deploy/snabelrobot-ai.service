@@ -1,0 +1,15 @@
+[Unit]
+Description=Snabelrobot AI camera web interface
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/snabelrobot
+ExecStart=/usr/bin/python3 /home/pi/snabelrobot/ai_app.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
