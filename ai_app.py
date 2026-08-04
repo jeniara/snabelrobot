@@ -13,9 +13,10 @@ from flask import Flask, Response, jsonify, render_template, request
 
 LOGGER = logging.getLogger(__name__)
 CAMERAS = {0, 1}
+PROJECT_DIR = Path(__file__).resolve().parent
 PIPELINES = {
     "objects": Path("/usr/share/rpi-camera-assets/hailo_yolov8_inference.json"),
-    "faces": Path("/usr/share/rpi-camera-assets/face_detect_cv.json"),
+    "faces": PROJECT_DIR / "config" / "face_detect_cv.json",
 }
 MODEL_LABELS = {
     "objects": "Modell: YOLOv8s | Hailo-8 26 TOPS",
