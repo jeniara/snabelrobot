@@ -7,6 +7,8 @@ import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 
+import cv2
+import numpy as np
 from flask import Flask, Response, jsonify, render_template, request
 
 LOGGER = logging.getLogger(__name__)
@@ -14,6 +16,10 @@ CAMERAS = {0, 1}
 PIPELINES = {
     "objects": Path("/usr/share/rpi-camera-assets/hailo_yolov8_inference.json"),
     "faces": Path("/usr/share/rpi-camera-assets/face_detect_cv.json"),
+}
+MODEL_LABELS = {
+    "objects": "Modell: YOLOv8s | Hailo-8 26 TOPS",
+    "faces": "Modell: OpenCV Face Detector | CPU",
 }
 app = Flask(__name__)
 
@@ -37,8 +43,8 @@ def _rpicam_command(camera: int, mode: str) -> list[str]:
     ]
 
 
-def _jpeg_frames(process: subprocess.Popen[bytes]) -> Iterator[bytes]:
-    """Split an MJPEG stream into browser multipart frames."""
+def _jpeg_frames(process: subprocess.Popen[bytes], mode: str) -> Iterator[bytes]:
+    """Split an MJPEG stream and draw the active model on every frame."""
     assert process.stdout is not None
     buffer = bytearray()
     try:
@@ -53,7 +59,31 @@ def _jpeg_frames(process: subprocess.Popen[bytes]) -> Iterator[bytes]:
                     break
                 frame = bytes(buffer[start:end + 2])
                 del buffer[:end + 2]
-                yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                image = cv2.imdecode(
+                    np.frombuffer(frame, dtype=np.uint8), cv2.IMREAD_COLOR
+                )
+                if image is not None:
+                    cv2.rectangle(image, (12, 12), (530, 58), (10, 20, 28), -1)
+                    cv2.putText(
+                        image,
+                        MODEL_LABELS[mode],
+                        (25, 44),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.75,
+                        (80, 235, 180),
+                        2,
+                        cv2.LINE_AA,
+                    )
+                    encoded, jpeg = cv2.imencode(
+                        ".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 88]
+                    )
+                    if encoded:
+                        frame = jpeg.tobytes()
+                yield (
+                    b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
+                    + frame
+                    + b"\r\n"
+                )
     finally:
         process.terminate()
         try:
@@ -83,7 +113,7 @@ def video_feed() -> Response:
         stderr=subprocess.DEVNULL,
     )
     return Response(
-        _jpeg_frames(process),
+        _jpeg_frames(process, mode),
         mimetype="multipart/x-mixed-replace; boundary=frame",
     )
 
