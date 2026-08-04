@@ -1,0 +1,16 @@
+[Unit]
+Description=Snabelrobot stereo camera viewer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/snabelrobot
+ExecStart=/home/pi/snabelrobot/.camera-venv/bin/python /home/pi/snabelrobot/stereo_app.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+

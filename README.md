@@ -52,6 +52,13 @@ kontakten upphör skickar serverns watchdog jog cancel inom 0,75 sekunder.
 
 För automatisk start används `deploy/snabelrobot.service` som systemd-tjänst.
 
+## Stereokameror
+
+`stereo_app.py` visar två Camera Module 3-flöden på port 8081. Avståndsmätning
+kräver en kalibreringsfil skapad med `stereo_calibrate.py`; den fysiska baslinjen
+är 3,45 cm. Kalibreringsbilder och resultat lagras lokalt under `camera_data/`
+och versionshanteras inte.
+
 All hårdvarukommunikation går genom `GrblController` i `grbl.py`. GUI och högre
 logik ska aldrig skicka G-kod direkt.
 
