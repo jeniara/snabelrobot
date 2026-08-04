@@ -30,6 +30,7 @@
       <label>Kamera <select id="camera"><option value="0">Kamera 0</option><option value="1">Kamera 1</option></select></label>
       <label>Läge <select id="mode"><option value="objects">Föremål (Hailo)</option><option value="faces">Ansikten (detektering)</option></select></label>
       <button id="start">Starta bild</button>
+      <strong id="active">Aktivt läge: inte startat</strong>
     </div>
     <p><small>Ansiktsläget visar endast var ansikten finns. Det bedömer inte identitet, kön, ålder eller känslor.</small></p>
     <img id="feed" alt="Kamerabilden visas här">
@@ -37,11 +38,18 @@
 </main>
 <script>
   const feed = document.querySelector('#feed');
-  document.querySelector('#start').addEventListener('click', () => {
-    const camera = document.querySelector('#camera').value;
-    const mode = document.querySelector('#mode').value;
-    feed.src = `/video_feed?camera=${camera}&mode=${mode}&t=${Date.now()}`;
-  });
+  const camera = document.querySelector('#camera');
+  const mode = document.querySelector('#mode');
+  const active = document.querySelector('#active');
+  function startFeed() {
+    feed.src = `/video_feed?camera=${camera.value}&mode=${mode.value}&t=${Date.now()}`;
+    const modeName = mode.options[mode.selectedIndex].text;
+    const cameraName = camera.options[camera.selectedIndex].text;
+    active.textContent = `Aktivt läge: ${modeName}, ${cameraName}`;
+  }
+  document.querySelector('#start').addEventListener('click', startFeed);
+  camera.addEventListener('change', startFeed);
+  mode.addEventListener('change', startFeed);
   fetch('/api/status').then(r => r.json()).then(s => {
     const badge = document.querySelector('#status');
     badge.textContent = s.hailo_ready ? 'Hailo redo' : 'Hailo väntar på montering + omstart';
