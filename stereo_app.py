@@ -17,6 +17,7 @@ FRAME_SIZE = (640, 360)
 CALIBRATION_FILE = Path("camera_data/stereo_calibration.npz")
 CAPTURE_DIRECTORY = Path("camera_data/calibration_pairs")
 CHECKERBOARD_PATTERN = (7, 4)
+MIN_STABLE_REGION_PIXELS = 1200
 
 
 class StereoCamera:
@@ -139,16 +140,60 @@ class StereoCamera:
         valid[:, -margin_x:] = False
         values = depth[valid]
         self.valid_fraction = float(valid.mean())
-        self.distance_m = float(np.percentile(values, 10)) if values.size > 500 else None
+        self.distance_m, stable_region = self._nearest_stable_region(depth, valid)
         normalized = np.zeros_like(gray_left)
         if values.size:
             clipped = np.clip(depth, 0.15, 3.0)
             normalized = np.uint8(255 * (3.0 - clipped) / 2.85)
             normalized[~valid] = 0
         heatmap = cv2.applyColorMap(normalized, cv2.COLORMAP_TURBO)
+        if stable_region is not None:
+            contours, _ = cv2.findContours(
+                stable_region.astype(np.uint8),
+                cv2.RETR_EXTERNAL,
+                cv2.CHAIN_APPROX_SIMPLE,
+            )
+            cv2.drawContours(heatmap, contours, -1, (255, 255, 255), 2)
         label = "No reliable depth" if self.distance_m is None else f"Nearest stable depth: {self.distance_m:.2f} m"
         cv2.putText(heatmap, label, (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         return left_rect, right_rect, self._jpeg(heatmap)
+
+    @staticmethod
+    def _nearest_stable_region(
+        depth: np.ndarray,
+        valid: np.ndarray,
+    ) -> tuple[float | None, np.ndarray | None]:
+        """Return the nearest large coherent depth region, rejecting speckle."""
+        kernel_open = np.ones((3, 3), np.uint8)
+        kernel_close = np.ones((7, 7), np.uint8)
+        candidates: list[tuple[float, int, np.ndarray]] = []
+
+        # Ten-centimetre slices keep unrelated foreground and background
+        # surfaces from joining into one component.
+        for lower in np.arange(0.15, 3.0, 0.10):
+            upper = lower + 0.10
+            band = (valid & (depth >= lower) & (depth < upper)).astype(np.uint8)
+            band = cv2.morphologyEx(band, cv2.MORPH_OPEN, kernel_open)
+            band = cv2.morphologyEx(band, cv2.MORPH_CLOSE, kernel_close)
+            count, labels, stats, _ = cv2.connectedComponentsWithStats(band, 8)
+            for label in range(1, count):
+                area = int(stats[label, cv2.CC_STAT_AREA])
+                if area < MIN_STABLE_REGION_PIXELS:
+                    continue
+                region = labels == label
+                region_depths = depth[region & valid]
+                if region_depths.size < MIN_STABLE_REGION_PIXELS:
+                    continue
+                median = float(np.median(region_depths))
+                spread = float(np.percentile(region_depths, 75) - np.percentile(region_depths, 25))
+                if spread <= 0.08:
+                    candidates.append((median, area, region))
+
+        if not candidates:
+            return None, None
+        # Distance is primary; area breaks ties between overlapping bands.
+        distance, _, region = min(candidates, key=lambda item: (item[0], -item[1]))
+        return distance, region
 
     @staticmethod
     def _jpeg(frame: np.ndarray) -> bytes:
