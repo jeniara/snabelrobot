@@ -78,11 +78,16 @@ class StereoCamera:
             left, right = (frame.copy() for frame in self._raw)
         left_gray = cv2.cvtColor(left, cv2.COLOR_RGB2GRAY)
         right_gray = cv2.cvtColor(right, cv2.COLOR_RGB2GRAY)
+        flags = (
+            cv2.CALIB_CB_ADAPTIVE_THRESH
+            | cv2.CALIB_CB_NORMALIZE_IMAGE
+            | cv2.CALIB_CB_FAST_CHECK
+        )
         found_left, _ = cv2.findChessboardCorners(
-            left_gray, CHECKERBOARD_PATTERN
+            left_gray, CHECKERBOARD_PATTERN, flags
         )
         found_right, _ = cv2.findChessboardCorners(
-            right_gray, CHECKERBOARD_PATTERN
+            right_gray, CHECKERBOARD_PATTERN, flags
         )
         if not (found_left and found_right):
             return None, False
@@ -185,8 +190,12 @@ def create_app(stereo: StereoCamera) -> Flask:
 
     @app.post("/api/capture-calibration")
     def capture_calibration():
-        pair, found = stereo.capture_calibration_pair()
-        return jsonify(ok=found, pair=pair)
+        try:
+            pair, found = stereo.capture_calibration_pair()
+            return jsonify(ok=found, pair=pair)
+        except Exception:
+            LOGGER.exception("Calibration capture failed")
+            return jsonify(ok=False, pair=None, error="camera_error"), 500
 
     return app
 
