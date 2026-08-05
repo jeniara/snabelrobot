@@ -71,6 +71,10 @@ kräver en kalibreringsfil skapad med `stereo_calibrate.py`; den fysiska baslinj
 är 3,45 cm. Kalibreringsbilder och resultat lagras lokalt under `camera_data/`
 och versionshanteras inte.
 
+Det aktuella utskrivna schackbrädet har uppmätt rutsteg 32,675 mm horisontellt
+och 33,075 mm vertikalt. `stereo_calibrate.py` använder dessa värden som
+standard eftersom utskriften är något ojämnt skalad i X- och Y-led.
+
 All hårdvarukommunikation går genom `GrblController` i `grbl.py`. GUI och högre
 logik ska aldrig skicka G-kod direkt.
 

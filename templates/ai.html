@@ -22,13 +22,12 @@
 <body>
 <main>
   <header>
-    <div><h1>Snabelrobot AI-kamera</h1><small>Objekt eller ansikten, kamera 0 eller 1</small></div>
+    <div><h1>Snabelrobot AI-kamera</h1><small>Kamera 0: föremål · Kamera 1: ansikten</small></div>
     <span id="status" class="badge">Kontrollerar Hailo…</span>
   </header>
   <section class="panel">
     <div class="controls">
-      <label>Kamera <select id="camera"><option value="0">Kamera 0</option><option value="1">Kamera 1</option></select></label>
-      <label>Läge <select id="mode"><option value="objects">Föremål (Hailo)</option><option value="faces">Ansikten (detektering)</option></select></label>
+      <label>Funktion <select id="camera"><option value="0">Kamera 0 · Föremål (Hailo)</option><option value="1">Kamera 1 · Ansikten och riktning</option></select></label>
       <button id="start">Starta bild</button>
       <strong id="active">Aktivt läge: inte startat</strong>
     </div>
@@ -39,17 +38,15 @@
 <script>
   const feed = document.querySelector('#feed');
   const camera = document.querySelector('#camera');
-  const mode = document.querySelector('#mode');
   const active = document.querySelector('#active');
   function startFeed() {
-    feed.src = `/video_feed?camera=${camera.value}&mode=${mode.value}&t=${Date.now()}`;
-    const modeName = mode.options[mode.selectedIndex].text;
+    feed.src = `/video_feed?camera=${camera.value}&t=${Date.now()}`;
     const cameraName = camera.options[camera.selectedIndex].text;
-    active.textContent = `Aktivt läge: ${modeName}, ${cameraName}`;
+    active.textContent = `Aktivt läge: ${cameraName}`;
   }
   document.querySelector('#start').addEventListener('click', startFeed);
   camera.addEventListener('change', startFeed);
-  mode.addEventListener('change', startFeed);
+  startFeed();
   fetch('/api/status').then(r => r.json()).then(s => {
     const badge = document.querySelector('#status');
     badge.textContent = s.hailo_ready ? 'Hailo redo' : 'Hailo väntar på montering + omstart';

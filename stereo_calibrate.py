@@ -9,7 +9,12 @@ import cv2
 import numpy as np
 
 
-def calibrate(columns: int, rows: int, square_mm: float) -> None:
+def calibrate(
+    columns: int,
+    rows: int,
+    square_x_mm: float,
+    square_y_mm: float,
+) -> None:
     directory = Path("camera_data/calibration_pairs")
     left_files = sorted(directory.glob("left_*.png"))
     right_files = sorted(directory.glob("right_*.png"))
@@ -18,7 +23,8 @@ def calibrate(columns: int, rows: int, square_mm: float) -> None:
     pattern = (columns, rows)
     object_template = np.zeros((columns * rows, 3), np.float32)
     object_template[:, :2] = np.mgrid[0:columns, 0:rows].T.reshape(-1, 2)
-    object_template *= square_mm / 1000.0
+    object_template[:, 0] *= square_x_mm / 1000.0
+    object_template[:, 1] *= square_y_mm / 1000.0
     objects, left_points, right_points = [], [], []
     size = None
     for left_path, right_path in zip(left_files, right_files):
@@ -54,7 +60,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--columns", type=int, default=9, help="inner checkerboard columns")
     parser.add_argument("--rows", type=int, default=6, help="inner checkerboard rows")
-    parser.add_argument("--square-mm", type=float, default=25.0)
+    parser.add_argument(
+        "--square-x-mm", type=float, default=32.675,
+        help="measured horizontal square pitch in millimetres",
+    )
+    parser.add_argument(
+        "--square-y-mm", type=float, default=33.075,
+        help="measured vertical square pitch in millimetres",
+    )
     args = parser.parse_args()
-    calibrate(args.columns, args.rows, args.square_mm)
-
+    calibrate(
+        args.columns,
+        args.rows,
+        args.square_x_mm,
+        args.square_y_mm,
+    )

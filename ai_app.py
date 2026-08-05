@@ -33,11 +33,9 @@ app = Flask(__name__)
 
 def _validated_options() -> tuple[int, str]:
     camera = request.args.get("camera", default=0, type=int)
-    mode = request.args.get("mode", default="objects", type=str)
     if camera not in CAMERAS:
         raise ValueError("Kameran måste vara 0 eller 1")
-    if mode not in PIPELINES:
-        raise ValueError("Okänt AI-läge")
+    mode = "objects" if camera == 0 else "faces"
     return camera, mode
 
 
