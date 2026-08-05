@@ -1,6 +1,132 @@
-<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Snabelrobot stereo</title><style>
-:root{color-scheme:dark;font-family:system-ui;background:#11171c;color:#edf3f7}body{margin:0}.top{display:flex;justify-content:space-between;padding:14px 18px;background:#202a33}.wrap{padding:14px;display:grid;gap:14px}.feeds{display:grid;grid-template-columns:1fr 1fr;gap:12px}.panel{background:#20272e;border:1px solid #35404a;border-radius:10px;padding:12px}img{display:block;width:100%;border-radius:6px;background:#080b0e}.status{display:flex;gap:20px;flex-wrap:wrap;align-items:center}.distance{font-size:2rem;font-weight:600}button{padding:10px;border-radius:7px;background:#34414b;color:#fff;border:1px solid #52606b}@media(max-width:700px){.feeds{grid-template-columns:1fr}}
-</style></head><body><header class="top"><b>Snabelrobot · stereokamera</b><span>Baslinje 3,45 cm</span></header><main class="wrap"><section class="status panel"><span>Status: <b id="cal">läser…</b></span><span>Närmaste stabila avstånd: <span class="distance" id="distance">–</span></span><button id="capture">Spara kalibreringspar</button></section><div class="feeds"><section class="panel"><h2>Vänster kamera</h2><img src="/stream/left"></section><section class="panel"><h2>Höger kamera</h2><img src="/stream/right"></section></div><section class="panel"><h2>Djupkarta</h2><img id="depth" src="/stream/depth"><p id="hint">Djupkartan aktiveras efter stereokalibrering.</p></section></main><script>
-const q=s=>document.querySelector(s);async function update(){const d=await fetch('/api/status').then(r=>r.json());q('#cal').textContent=d.calibrated?'kalibrerad':'kalibrering krävs';q('#distance').textContent=d.distance_m?d.distance_m.toFixed(2)+' m':'–';q('#hint').textContent=d.calibrated?'Giltiga djuppixlar: '+(100*d.valid_fraction).toFixed(1)+' %':'Ta minst 10 schackbrädepar från varierade vinklar.'}q('#capture').onclick=async()=>{const d=await fetch('/api/capture-calibration',{method:'POST'}).then(r=>r.json());q('#hint').textContent='Kalibreringspar '+d.pair+' sparat.'};setInterval(update,500);update();
-</script></body></html>
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snabelrobot stereo</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #0e171d; color: #eef5f8; }
+    .top, .wrap { max-width: 1250px; margin: auto; }
+    .top { display: flex; justify-content: space-between; padding: 20px; }
+    .wrap { padding: 0 20px 30px; }
+    .panel { background: #172630; border: 1px solid #36505f; border-radius: 14px; padding: 16px; }
+    .status { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+    .feeds { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0; }
+    img { width: 100%; background: #05080a; border-radius: 9px; }
+    button { padding: 11px 16px; border: 0; border-radius: 8px; background: #2b8a66; color: white; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: wait; }
+    .guide { margin-top: 15px; text-align: center; }
+    #instruction { font-size: 1.5rem; font-weight: 700; }
+    #countdown { min-height: 90px; font-size: 4.5rem; color: #62efb9; font-weight: 800; }
+    #progress { color: #b8c9d2; }
+    .distance { font-size: 1.4rem; color: #62efb9; }
+    @media (max-width: 800px) { .feeds { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<header class="top"><b>Snabelrobot · stereokalibrering</b><span>Baslinje 3,45 cm · bräde 8 × 5 rutor</span></header>
+<main class="wrap">
+  <section class="status panel">
+    <span>Status: <b id="cal">läser…</b></span>
+    <span>Närmaste stabila avstånd: <span class="distance" id="distance">–</span></span>
+    <button id="guided">Starta guidad kalibrering</button>
+    <button id="capture">Spara ett par manuellt</button>
+  </section>
+  <section class="guide panel">
+    <div id="instruction">Tryck Starta när du håller brädet redo.</div>
+    <div id="countdown"></div>
+    <div id="progress">7 × 4 inre hörn måste synas i båda bilderna.</div>
+  </section>
+  <div class="feeds">
+    <section class="panel"><h2>Vänster kamera</h2><img src="/stream/left"></section>
+    <section class="panel"><h2>Höger kamera</h2><img src="/stream/right"></section>
+  </div>
+  <section class="panel"><h2>Djupkarta</h2><img id="depth" src="/stream/depth"><p id="hint">Djupkartan aktiveras efter stereokalibrering.</p></section>
+</main>
+<script>
+  const q = selector => document.querySelector(selector);
+  const positions = [
+    '50 cm · mitten · rakt', '50 cm · vänster', '50 cm · höger',
+    '50 cm · högt', '50 cm · lågt', '35 cm · mitten · rakt',
+    '35 cm · vänster · lätt lutat', '35 cm · höger · lätt lutat',
+    '70 cm · mitten · rakt', '70 cm · vänster · lätt lutat',
+    '70 cm · höger · lätt lutat', '80 cm · högt', '80 cm · lågt',
+    '45 cm · lutat åt vänster', '45 cm · lutat åt höger'
+  ];
+  let running = false;
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  let audio;
 
+  function tone(frequency, duration) {
+    audio ||= new AudioContext();
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.18, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + duration / 1000);
+    oscillator.connect(gain).connect(audio.destination);
+    oscillator.start();
+    oscillator.stop(audio.currentTime + duration / 1000);
+  }
+
+  async function takePair() {
+    for (const value of [3, 2, 1]) {
+      q('#countdown').textContent = value;
+      tone(value === 1 ? 1050 : 700, value === 1 ? 420 : 120);
+      await wait(1000);
+    }
+    q('#countdown').textContent = '📷';
+    const result = await fetch('/api/capture-calibration', {method: 'POST'}).then(r => r.json());
+    await wait(500);
+    return result;
+  }
+
+  async function guidedRun() {
+    if (running) return;
+    running = true;
+    q('#guided').disabled = true;
+    for (let index = 0; index < positions.length;) {
+      q('#instruction').textContent = positions[index];
+      q('#progress').textContent = `Bild ${index + 1} av ${positions.length} · flytta kortet nu`;
+      q('#countdown').textContent = '';
+      await wait(3500);
+      const result = await takePair();
+      if (result.ok) {
+        q('#progress').textContent = `Bildpar ${result.pair} sparat`;
+        index += 1;
+        await wait(800);
+      } else {
+        q('#progress').textContent = 'Hörnen hittades inte i båda kamerorna – samma position igen.';
+        tone(240, 500);
+        await wait(1800);
+      }
+    }
+    q('#instruction').textContent = 'Bildinsamlingen är klar!';
+    q('#countdown').textContent = '✓';
+    q('#progress').textContent = 'Säg till Codex så kör vi beräkningen och kvalitetskontrollen.';
+    q('#guided').disabled = false;
+    running = false;
+  }
+
+  async function update() {
+    const data = await fetch('/api/status').then(r => r.json());
+    q('#cal').textContent = data.calibrated ? 'kalibrerad' : 'kalibrering krävs';
+    q('#distance').textContent = data.distance_m ? data.distance_m.toFixed(2) + ' m' : '–';
+    q('#hint').textContent = data.calibrated
+      ? 'Giltiga djuppixlar: ' + (100 * data.valid_fraction).toFixed(1) + ' %'
+      : 'Ta minst 10 godkända schackbrädepar från varierade vinklar.';
+  }
+
+  q('#guided').addEventListener('click', guidedRun);
+  q('#capture').addEventListener('click', async () => {
+    const result = await takePair();
+    q('#progress').textContent = result.ok
+      ? `Bildpar ${result.pair} sparat manuellt.`
+      : 'Hörnen hittades inte tydligt i båda kamerorna.';
+  });
+  setInterval(update, 1000);
+  update();
+</script>
+</body>
+</html>

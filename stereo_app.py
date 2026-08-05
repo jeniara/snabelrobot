@@ -16,6 +16,7 @@ LOGGER = logging.getLogger(__name__)
 FRAME_SIZE = (640, 360)
 CALIBRATION_FILE = Path("camera_data/stereo_calibration.npz")
 CAPTURE_DIRECTORY = Path("camera_data/calibration_pairs")
+CHECKERBOARD_PATTERN = (7, 4)
 
 
 class StereoCamera:
@@ -70,17 +71,27 @@ class StereoCamera:
         with self._lock:
             return self._frames[name]
 
-    def capture_calibration_pair(self) -> int:
+    def capture_calibration_pair(self) -> tuple[int | None, bool]:
         with self._lock:
             if self._raw is None:
                 raise RuntimeError("No camera frames are available")
             left, right = (frame.copy() for frame in self._raw)
+        left_gray = cv2.cvtColor(left, cv2.COLOR_RGB2GRAY)
+        right_gray = cv2.cvtColor(right, cv2.COLOR_RGB2GRAY)
+        found_left, _ = cv2.findChessboardCorners(
+            left_gray, CHECKERBOARD_PATTERN
+        )
+        found_right, _ = cv2.findChessboardCorners(
+            right_gray, CHECKERBOARD_PATTERN
+        )
+        if not (found_left and found_right):
+            return None, False
         CAPTURE_DIRECTORY.mkdir(parents=True, exist_ok=True)
         existing = list(CAPTURE_DIRECTORY.glob("left_*.png"))
         number = len(existing) + 1
         cv2.imwrite(str(CAPTURE_DIRECTORY / f"left_{number:03d}.png"), left)
         cv2.imwrite(str(CAPTURE_DIRECTORY / f"right_{number:03d}.png"), right)
-        return number
+        return number, True
 
     def _load_calibration(self) -> dict[str, np.ndarray] | None:
         if not CALIBRATION_FILE.exists():
@@ -174,7 +185,8 @@ def create_app(stereo: StereoCamera) -> Flask:
 
     @app.post("/api/capture-calibration")
     def capture_calibration():
-        return jsonify(ok=True, pair=stereo.capture_calibration_pair())
+        pair, found = stereo.capture_calibration_pair()
+        return jsonify(ok=found, pair=pair)
 
     return app
 
@@ -187,4 +199,3 @@ if __name__ == "__main__":
         create_app(camera).run(host="0.0.0.0", port=8081, threaded=True)
     finally:
         camera.close()
-

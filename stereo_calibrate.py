@@ -58,8 +58,8 @@ def calibrate(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--columns", type=int, default=9, help="inner checkerboard columns")
-    parser.add_argument("--rows", type=int, default=6, help="inner checkerboard rows")
+    parser.add_argument("--columns", type=int, default=7, help="inner checkerboard columns")
+    parser.add_argument("--rows", type=int, default=4, help="inner checkerboard rows")
     parser.add_argument(
         "--square-x-mm", type=float, default=32.675,
         help="measured horizontal square pitch in millimetres",
