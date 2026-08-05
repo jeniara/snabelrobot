@@ -24,8 +24,14 @@ class StereoCamera:
     """Capture two cameras and calculate depth when calibration is available."""
 
     def __init__(self) -> None:
-        self.left = Picamera2(0)
-        self.right = Picamera2(1)
+        self.calibration = self._load_calibration()
+        camera_indices = (0, 1)
+        if self.calibration and "camera_indices" in self.calibration:
+            camera_indices = tuple(
+                int(value) for value in self.calibration["camera_indices"]
+            )
+        self.left = Picamera2(camera_indices[0])
+        self.right = Picamera2(camera_indices[1])
         config = {"main": {"size": FRAME_SIZE, "format": "RGB888"}}
         self.left.configure(self.left.create_video_configuration(**config))
         self.right.configure(self.right.create_video_configuration(**config))
@@ -38,7 +44,6 @@ class StereoCamera:
         self._raw: tuple[np.ndarray, np.ndarray] | None = None
         self.distance_m: float | None = None
         self.valid_fraction = 0.0
-        self.calibration = self._load_calibration()
         self.matcher = cv2.StereoSGBM_create(
             minDisparity=0,
             numDisparities=128,

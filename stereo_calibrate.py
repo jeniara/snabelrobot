@@ -14,6 +14,8 @@ def calibrate(
     rows: int,
     square_x_mm: float,
     square_y_mm: float,
+    swap_inputs: bool,
+    camera_indices: tuple[int, int],
 ) -> None:
     directory = Path("camera_data/calibration_pairs")
     left_files = sorted(directory.glob("left_*.png"))
@@ -28,6 +30,8 @@ def calibrate(
     objects, left_points, right_points = [], [], []
     size = None
     for left_path, right_path in zip(left_files, right_files):
+        if swap_inputs:
+            left_path, right_path = right_path, left_path
         left = cv2.imread(str(left_path), cv2.IMREAD_GRAYSCALE)
         right = cv2.imread(str(right_path), cv2.IMREAD_GRAYSCALE)
         size = (left.shape[1], left.shape[0])
@@ -51,7 +55,15 @@ def calibrate(
     map2x, map2y = cv2.initUndistortRectifyMap(k2, d2, r2, p2, size, cv2.CV_32FC1)
     output = Path("camera_data/stereo_calibration.npz")
     output.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(output, map1x=map1x, map1y=map1y, map2x=map2x, map2y=map2y, q=q)
+    np.savez_compressed(
+        output,
+        map1x=map1x,
+        map1y=map1y,
+        map2x=map2x,
+        map2y=map2y,
+        q=q,
+        camera_indices=np.asarray(camera_indices, dtype=np.int8),
+    )
     print(f"Saved {output}; RMS={rms:.3f}, measured baseline={measured_baseline*100:.2f} cm")
     print("Compare measured baseline with the physical 3.45 cm before trusting distances.")
 
@@ -68,10 +80,25 @@ if __name__ == "__main__":
         "--square-y-mm", type=float, default=33.075,
         help="measured vertical square pitch in millimetres",
     )
+    parser.add_argument(
+        "--swap-inputs",
+        action="store_true",
+        help="swap saved left/right pairs when correcting camera order",
+    )
+    parser.add_argument(
+        "--camera-indices",
+        nargs=2,
+        type=int,
+        default=(0, 1),
+        metavar=("LEFT", "RIGHT"),
+        help="Picamera2 indices corresponding to logical left and right",
+    )
     args = parser.parse_args()
     calibrate(
         args.columns,
         args.rows,
         args.square_x_mm,
         args.square_y_mm,
+        args.swap_inputs,
+        tuple(args.camera_indices),
     )
