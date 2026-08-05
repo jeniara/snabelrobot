@@ -34,3 +34,14 @@ def test_nearest_stable_region_requires_a_large_surface() -> None:
 
     assert distance is None
     assert region is None
+
+
+def test_left_right_consistency_rejects_one_way_match() -> None:
+    left = np.full((4, 12), 3.0, dtype=np.float32)
+    right = np.full((4, 12), -3.0, dtype=np.float32)
+    right[:, 5] = -8.0
+
+    consistent = StereoCamera._left_right_consistency(left, right)
+
+    assert consistent[:, 8].sum() == 0
+    assert consistent[:, 7].all()

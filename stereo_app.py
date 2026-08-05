@@ -50,6 +50,17 @@ class StereoCamera:
             speckleWindowSize=100,
             speckleRange=2,
         )
+        self.right_matcher = cv2.StereoSGBM_create(
+            minDisparity=-128,
+            numDisparities=128,
+            blockSize=7,
+            P1=8 * 3 * 7**2,
+            P2=32 * 3 * 7**2,
+            disp12MaxDiff=1,
+            uniquenessRatio=10,
+            speckleWindowSize=100,
+            speckleRange=2,
+        )
         self.thread = threading.Thread(target=self._run, daemon=True)
 
     @property
@@ -130,9 +141,19 @@ class StereoCamera:
         gray_left = cv2.cvtColor(left_rect, cv2.COLOR_RGB2GRAY)
         gray_right = cv2.cvtColor(right_rect, cv2.COLOR_RGB2GRAY)
         disparity = self.matcher.compute(gray_left, gray_right).astype(np.float32) / 16.0
+        disparity_right = (
+            self.right_matcher.compute(gray_right, gray_left).astype(np.float32) / 16.0
+        )
         points = cv2.reprojectImageTo3D(disparity, cal["q"])
         depth = np.abs(points[:, :, 2])
-        valid = (disparity > 1.0) & np.isfinite(depth) & (depth > 0.10) & (depth < 5.0)
+        consistent = self._left_right_consistency(disparity, disparity_right)
+        valid = (
+            consistent
+            & (disparity > 1.0)
+            & np.isfinite(depth)
+            & (depth > 0.10)
+            & (depth < 5.0)
+        )
         margin_x, margin_y = FRAME_SIZE[0] // 10, FRAME_SIZE[1] // 10
         valid[:margin_y] = False
         valid[-margin_y:] = False
@@ -157,6 +178,23 @@ class StereoCamera:
         label = "No reliable depth" if self.distance_m is None else f"Nearest stable depth: {self.distance_m:.2f} m"
         cv2.putText(heatmap, label, (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         return left_rect, right_rect, self._jpeg(heatmap)
+
+    @staticmethod
+    def _left_right_consistency(
+        disparity_left: np.ndarray,
+        disparity_right: np.ndarray,
+        tolerance: float = 1.5,
+    ) -> np.ndarray:
+        """Validate that left and right disparity maps agree at each match."""
+        height, width = disparity_left.shape
+        yy, xx = np.indices((height, width))
+        right_x = np.rint(xx - disparity_left).astype(np.int32)
+        inside = (right_x >= 0) & (right_x < width)
+        sampled_right = np.full_like(disparity_left, np.nan)
+        sampled_right[inside] = disparity_right[yy[inside], right_x[inside]]
+        return inside & np.isfinite(sampled_right) & (
+            np.abs(disparity_left + sampled_right) <= tolerance
+        )
 
     @staticmethod
     def _nearest_stable_region(
